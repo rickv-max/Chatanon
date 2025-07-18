@@ -1,12 +1,22 @@
 {
   "name": "chatanon-bot",
   "version": "1.0.0",
+  "description": "Bot WhatsApp Anonim menggunakan Baileys",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "anonim",
+    "chat",
+    "bot"
+  ],
+  "author": "rickv-max",
+  "license": "MIT",
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.6.0",
+    "@whiskeysockets/baileys": "6.4.0",
     "pino": "^8.0.0"
   }
 }
