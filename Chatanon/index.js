@@ -1,38 +1,43 @@
-const { Client } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3000;
+const { default: makeWASocket, useSingleFileAuthState } = require('@whiskeysockets/baileys')
+const { Boom } = require('@hapi/boom')
+const P = require('pino')
+const fs = require('fs')
 
-const client = new Client();
+const { state, saveState } = useSingleFileAuthState('./session/creds.json')
 
-client.on('qr', qr => {
-    console.log('Scan QR ini untuk login WhatsApp:');
-    qrcode.generate(qr, { small: true });
-});
+async function startSock() {
+    const sock = makeWASocket({
+        logger: P({ level: 'silent' }),
+        printQRInTerminal: true,
+        auth: state
+    })
 
-client.on('ready', () => {
-    console.log('Bot siap digunakan (ONLINE).');
-});
+    sock.ev.on('creds.update', saveState)
 
-// Contoh fungsi kirim pesan via URL
-app.get('/send', async (req, res) => {
-    const { to, msg } = req.query;
+    sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+        if (connection === 'close') {
+            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut
+            console.log('Koneksi terputus. Reconnect:', shouldReconnect)
+            if (shouldReconnect) {
+                startSock()
+            }
+        } else if (connection === 'open') {
+            console.log('Bot siap digunakan!')
+        }
+    })
 
-    if (!to || !msg) {
-        return res.send('Gunakan ?to=nomor&msg=pesan');
-    }
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+        const msg = messages[0]
+        if (!msg.message) return
 
-    try {
-        const chatId = to + '@c.us';
-        await client.sendMessage(chatId, msg);
-        res.send('Pesan dikirim ke ' + to);
-    } catch (e) {
-        res.send('Gagal kirim: ' + e.message);
-    }
-});
+        const from = msg.key.remoteJid
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text
+        console.log('Pesan masuk:', text)
 
-client.initialize();
-app.listen(PORT, () => {
-    console.log('Server berjalan di port ' + PORT);
-});
+        if (text?.toLowerCase() === 'halo') {
+            await sock.sendMessage(from, { text: 'Hai! Ini ChatAnon Bot 👋' })
+        }
+    })
+}
+
+startSock()
