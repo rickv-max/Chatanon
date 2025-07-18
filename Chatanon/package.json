@@ -1,11 +1,17 @@
 {
   "name": "chatanon-bot",
   "version": "1.0.0",
+  "description": "Bot WhatsApp anonim real-time menggunakan Baileys",
   "main": "index.js",
   "scripts": {
-    "start": "bash start.sh"
+    "start": "node index.js"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.6.0"
+    "@whiskeysockets/baileys": "^6.7.0",
+    "pino": "^8.0.0"
   }
 }
