@@ -1,49 +1,39 @@
-import makeWASocket, { DisconnectReason, useSingleFileAuthState } from '@whiskeysockets/baileys'
-import { Boom } from '@hapi/boom'
-import P from 'pino'
+const { default: makeWASocket, useSingleFileAuthState } = require("@whiskeysockets/baileys")
+const { Boom } = require("@hapi/boom")
+const fs = require("fs")
 
-// Load atau buat session file
-const { state, saveState } = useSingleFileAuthState('./session/creds.json')
+// Gunakan single file session
+const { state, saveState } = useSingleFileAuthState("./session/creds.json")
 
-// Buat koneksi ke WhatsApp
-const startSock = () => {
+async function connect() {
     const sock = makeWASocket({
-        logger: P({ level: 'silent' }),
-        printQRInTerminal: true,
-        auth: state
+        auth: state,
+        printQRInTerminal: true
     })
 
-    // Simpan session saat berubah
-    sock.ev.on('creds.update', saveState)
+    sock.ev.on("creds.update", saveState)
 
-    // Respon pesan masuk
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        if (type === 'notify') {
-            const msg = messages[0]
-            const from = msg.key.remoteJid
-            const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text
-
-            if (!msg.key.fromMe && text) {
-                console.log(`📩 Pesan dari ${from}: ${text}`)
-                await sock.sendMessage(from, { text: 'Pesan kamu sudah terkirim secara anonim. ✉️' })
+    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+        if (connection === "close") {
+            const shouldReconnect = (lastDisconnect.error = Boom)?.output?.statusCode !== DisconnectReason.loggedOut
+            console.log("Connection closed. Reconnecting:", shouldReconnect)
+            if (shouldReconnect) {
+                connect()
             }
+        } else if (connection === "open") {
+            console.log("✅ BOT TERHUBUNG KE WHATSAPP!")
         }
     })
 
-    // Handle disconnect
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update
-        if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut
-            console.log('⚠️ Koneksi terputus. Reconnect:', shouldReconnect)
-            if (shouldReconnect) {
-                startSock()
-            }
-        } else if (connection === 'open') {
-            console.log('✅ Bot terhubung ke WhatsApp!')
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+        if (type !== "notify") return
+        const msg = messages[0]
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text
+
+        if (text === "!ping") {
+            await sock.sendMessage(msg.key.remoteJid, { text: "Pong!" })
         }
     })
 }
 
-// Mulai bot
-startSock()
+connect()
